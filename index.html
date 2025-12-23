@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Ultra-Pro Prediction System – FINAL</title>
+<title>Ultra-Pro Prediction System — FULL FINAL</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 body{margin:0;font-family:Arial;background:#f8fafc;color:#0f172a;padding:14px}
@@ -73,19 +73,19 @@ th{background:#f1f5f9}
 </div>
 </div>
 
-<!-- TIME PANEL -->
+<!-- TIME -->
 <div id="time" class="hidden">
 <div class="card">
-<h3>⏱ Prediction Time Performance</h3>
+<h3>⏱ Best Prediction Time</h3>
 <table>
-<thead><tr><th>Time</th><th>Total</th><th>Wins</th><th>Accuracy</th></tr></thead>
+<thead><tr><th>Time</th><th>Total</th><th>Wins</th><th>%</th></tr></thead>
 <tbody id="timeTable"></tbody>
 </table>
 </div>
 </div>
 
 <script>
-/* TELEGRAM */
+/* ================= TELEGRAM ================= */
 const TG_BOT_TOKEN="8297180938:AAHmCdIYnuf2vfidz3wfJXHAOZ9rE5J-lhk";
 const TG_CHAT_ID="8455379007";
 function sendTelegram(msg){
@@ -95,25 +95,27 @@ body:JSON.stringify({chat_id:TG_CHAT_ID,text:msg})
 });
 }
 
-/* CONFIG */
+/* ================= CONFIG ================= */
 const API="https://draw.ar-lottery01.com/WinGo/WinGo_30S/GetHistoryIssuePage.json";
 const MIN_DATA=16;
 
-/* STATE */
+/* ================= STATE ================= */
 let BS=[],lastPeriod=null,cd=30;
 let pending=null;
+let failedStable={};          // learning memory
 let timeStats=JSON.parse(localStorage.getItem("timeStats")||"{}");
 let bestTimeNotified={};
+let preAlert=false;
 
-/* TIMER */
+/* ================= TIMER ================= */
 setInterval(()=>{if(cd>0)cd--;cdEl.textContent=cd},1000);
 
-/* HELPERS */
+/* ================= HELPERS ================= */
 const bs=n=>n<=4?"Small":"Big";
 const nextP=p=>(BigInt(p)+1n).toString();
 const nowTime=()=>new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
 
-/* BREAKER MEMORY */
+/* ================= MEMORY ================= */
 function breakerMemory(hist){
 let b=[];
 for(let i=1;i<hist.length;i++){
@@ -132,20 +134,36 @@ if(h[0]!==h[1]&&h[1]!==h[2]&&h[2]!==h[3])return h[1];
 return null;
 }
 
-/* PREDICT */
+/* ================= PREDICTION ENGINE (FIXED) ================= */
 function predict(hist){
 if(hist.length<MIN_DATA)return{a:"SKIP",r:"Market mature nahi"};
-const stable=(hist[0]===hist[1]&&hist[1]===hist[2])?hist[0]:null;
+
+const twoSame = hist[0]===hist[1] ? hist[0] : null; // EARLY
+const threeSame = hist[0]===hist[1]&&hist[1]===hist[2] ? hist[0] : null;
+const key = hist.slice(0,3).join("-");
+if(failedStable[key]) return {a:"SKIP",r:"Last time yeh structure fail hua"};
+
+if(twoSame && !threeSame)
+return {a:"PREDICT",s:twoSame,m:"EARLY-STABLE",w:"2 same se early entry"};
+
 const br=breakerMemory(hist);
-if(stable&&br&&stable===br)return{a:"PREDICT",s:stable,m:"STABLE+BREAKER"};
-if(stable)return{a:"PREDICT",s:stable,m:"STABLE"};
-if(br)return{a:"PREDICT",s:br,m:"BREAKER"};
+if(threeSame && br && threeSame===br)
+return {a:"PREDICT",s:threeSame,m:"STABLE+BREAKER",w:"Stable + breaker agree"};
+
+if(threeSame)
+return {a:"PREDICT",s:threeSame,m:"STABLE",w:"Confirmed stable"};
+
+if(br)
+return {a:"PREDICT",s:br,m:"BREAKER",w:"Breaker repeat"};
+
 const rnd=randomBreaker(hist);
-if(rnd)return{a:"PREDICT",s:rnd,m:"RANDOM",risk:true};
-return{a:"SKIP",r:"No signal"};
+if(rnd)
+return {a:"PREDICT",s:rnd,m:"RANDOM",w:"Zig-zag breaker",risk:true};
+
+return {a:"SKIP",r:"Pressure / no edge"};
 }
 
-/* POLL */
+/* ================= POLL ================= */
 async function poll(){
 try{
 const r=await fetch(API,{cache:"no-store"});
@@ -158,27 +176,29 @@ const num=+d.number,side=bs(num);
 BS.unshift(side);if(BS.length>30)BS.pop();
 entryCount.textContent=`${Math.min(BS.length,MIN_DATA)} / ${MIN_DATA}`;
 
-/* Resolve pending */
+/* Resolve previous prediction */
 if(pending){
 const win = side===pending.s;
-const row=historyTable.rows[0];
-row.cells[3].innerHTML=win?'<span class="win">WIN</span>':'<span class="loss">LOSS</span>';
+historyTable.rows[0].cells[3].innerHTML=win?'<span class="win">WIN</span>':'<span class="loss">LOSS</span>';
 sendTelegram(`${win?'✅':'❌'} RESULT: ${win?'WIN':'LOSS'}\nSide: ${pending.s}\nMode: ${pending.m}`);
+if(!win && pending.m.includes("STABLE")){
+const k=pending.memKey; failedStable[k]=true;
+}
 timeStats[pending.t].t++;
 if(win)timeStats[pending.t].w++;
 pending=null;
 }
 
-/* New prediction */
+/* New decision */
 const dcs=predict(BS);
 if(dcs.a==="PREDICT"){
 prediction.innerHTML=`Prediction: ${dcs.s} ${dcs.risk?'<span class="highrisk">(HIGH RISK)</span>':''}`;
-why.textContent=dcs.m;
+why.textContent=dcs.w;
 skip.textContent="";
 const t=nowTime();
 timeStats[t]??={t:0,w:0};
-pending={s:dcs.s,m:dcs.m,t};
-sendTelegram(`🎯 PREDICTION\nSide: ${dcs.s}\nMode: ${dcs.m}\nPeriod: ${nextP(d.issueNumber)}`);
+pending={s:dcs.s,m:dcs.m,t,memKey:BS.slice(0,3).join("-")};
+sendTelegram(`🎯 PREDICTION\nSide: ${dcs.s}\nMode: ${dcs.m}${dcs.risk?" (HIGH RISK)":""}\nPeriod: ${nextP(d.issueNumber)}`);
 historyTable.insertAdjacentHTML("afterbegin",
 `<tr><td>${nextP(d.issueNumber)}</td><td>${dcs.s}</td><td>${dcs.m}</td><td>PENDING</td></tr>`);
 }else{
@@ -194,13 +214,13 @@ gameTable.insertAdjacentHTML("afterbegin",
 `<tr class="${cls}"><td>${d.issueNumber}</td><td>${num}</td><td>${side}</td></tr>`);
 while(gameTable.children.length>10)gameTable.removeChild(gameTable.lastChild);
 
-/* Time panel update */
+/* Time learning */
 renderTime();
 }catch(e){}
 }
 setInterval(poll,500);
 
-/* TIME PANEL */
+/* ================= TIME PANEL ================= */
 function renderTime(){
 timeTable.innerHTML="";
 for(const k in timeStats){
@@ -208,14 +228,14 @@ const v=timeStats[k],r=v.t?Math.round(v.w/v.t*100):0;
 timeTable.insertAdjacentHTML("beforeend",
 `<tr><td>${k}</td><td>${v.t}</td><td>${v.w}</td><td>${r}%</td></tr>`);
 if(v.t>=5&&r>=70&&!bestTimeNotified[k]){
-sendTelegram(`⏱ BEST PREDICTION TIME\n${k}\nAccuracy: ${r}%`);
+sendTelegram(`⏱ BEST TIME FOUND\n${k}\nAccuracy: ${r}%`);
 bestTimeNotified[k]=true;
 }
 }
 localStorage.setItem("timeStats",JSON.stringify(timeStats));
 }
 
-/* UI */
+/* ================= UI ================= */
 function tab(id){
 ["game","history","time"].forEach(x=>document.getElementById(x).classList.add("hidden"));
 document.getElementById(id).classList.remove("hidden");
@@ -223,7 +243,7 @@ document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active")
 event.target.classList.add("active");
 }
 
-/* DOM */
+/* ================= DOM ================= */
 const cdEl=document.getElementById("cd");
 const entryCount=document.getElementById("entryCount");
 const prediction=document.getElementById("prediction");
