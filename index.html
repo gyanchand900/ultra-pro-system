@@ -1,69 +1,65 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
+<meta charset="UTF-8">
 <title>Ultra-Pro Prediction System — FINAL</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 body{margin:0;font-family:Arial;background:#f8fafc;color:#0f172a;padding:14px}
+.hidden{display:none}
 .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:14px;margin-bottom:14px}
-.flex{display:flex;gap:10px;flex-wrap:wrap}
+.nav{display:flex;gap:8px;margin-bottom:10px}
+.nav button{flex:1;padding:10px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;font-weight:600;cursor:pointer}
+.nav button.active{background:#2563eb;color:#fff;border-color:#2563eb}
+.flex{display:flex;gap:8px;flex-wrap:wrap}
 .stat{flex:1;background:#f1f5f9;border-radius:10px;padding:10px;text-align:center}
 .stat span{font-size:12px;color:#64748b}
 .stat b{font-size:18px}
 table{width:100%;border-collapse:collapse}
 th,td{padding:8px;text-align:center;border-bottom:1px solid #e5e7eb}
 th{background:#f1f5f9}
-
 .pred{font-weight:700}
-.why{font-size:13px;color:#334155;margin-top:6px;white-space:pre-line}
-.reasons{margin-top:6px;font-size:12px;color:#475569}
-.reasons li{margin-left:14px}
-
-@keyframes glow{
-  0%{box-shadow:inset 0 0 0 rgba(0,0,0,0)}
-  50%{box-shadow:inset 0 0 18px rgba(0,0,0,.12)}
-  100%{box-shadow:inset 0 0 0 rgba(0,0,0,0)}
-}
-.stable{background:#d1fae5;animation:glow 3.5s ease-in-out infinite;font-weight:600}
-.break-big{background:#fed7aa;animation:glow 3.5s ease-in-out infinite;font-weight:600}
-.break-small{background:#bae6fd;animation:glow 3.5s ease-in-out infinite;font-weight:600}
-
-.nav{display:flex;gap:10px;margin-bottom:10px}
-.nav button{flex:1;padding:10px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;font-weight:600;cursor:pointer}
-.nav button.active{background:#2563eb;color:#fff;border-color:#2563eb}
-.hidden{display:none}
+.why{font-size:13px;color:#334155;white-space:pre-line;margin-top:6px}
+.skip{font-size:12px;color:#b91c1c;margin-top:6px}
 .win{color:#16a34a;font-weight:700}
 .loss{color:#dc2626;font-weight:700}
 .pending{color:#ca8a04;font-weight:700}
+
+@keyframes glow{0%{box-shadow:inset 0 0 0 rgba(0,0,0,0)}
+50%{box-shadow:inset 0 0 18px rgba(0,0,0,.15)}
+100%{box-shadow:inset 0 0 0 rgba(0,0,0,0)}}
+.stable{background:#d1fae5;animation:glow 3.5s infinite}
+.break-big{background:#fed7aa;animation:glow 3.5s infinite}
+.break-small{background:#bae6fd;animation:glow 3.5s infinite}
 </style>
 </head>
 
 <body>
 
 <div class="nav">
-  <button class="active" onclick="showTab('game')">🎮 Game</button>
-  <button onclick="showTab('history')">📜 History</button>
+  <button class="active" onclick="tab('game')">🎮 Game</button>
+  <button onclick="tab('history')">📜 History</button>
+  <button onclick="tab('time')">⏱ Timing</button>
 </div>
 
 <!-- GAME -->
 <div id="game">
   <div class="card flex">
     <div class="stat"><span>Countdown</span><b id="cd">30</b></div>
+    <div class="stat"><span>Wallet</span><b id="wallet">₹1000</b></div>
     <div class="stat"><span>Total</span><b id="total">0</b></div>
     <div class="stat"><span>Correct</span><b id="correct">0</b></div>
-    <div class="stat"><span>Wallet</span><b id="wallet">₹1000</b></div>
   </div>
 
   <div class="card">
     <div class="pred" id="prediction">Prediction: WAITING</div>
-    <div class="why" id="whyText"></div>
-    <ul class="reasons" id="skipList"></ul>
+    <div class="why" id="why"></div>
+    <div class="skip" id="skip"></div>
   </div>
 
   <div class="card">
     <table>
-      <thead><tr><th>Period</th><th>Number</th><th>Big / Small</th></tr></thead>
+      <thead><tr><th>Period</th><th>No.</th><th>Big/Small</th></tr></thead>
       <tbody id="gameTable"></tbody>
     </table>
   </div>
@@ -73,203 +69,184 @@ th{background:#f1f5f9}
 <div id="history" class="hidden">
   <div class="card">
     <table>
-      <thead>
-        <tr><th>Period</th><th>Prediction</th><th>Bet</th><th>Status</th><th>Wallet</th></tr>
-      </thead>
+      <thead><tr><th>Period</th><th>Side</th><th>Bet</th><th>Status</th><th>Wallet</th></tr></thead>
       <tbody id="historyTable"></tbody>
     </table>
   </div>
 </div>
 
+<!-- TIME -->
+<div id="time" class="hidden">
+  <div class="card">
+    <div class="flex">
+      <div class="stat"><span>Best Time</span><b id="bestTime">—</b></div>
+      <div class="stat"><span>Accuracy</span><b id="bestRate">—</b></div>
+    </div>
+    <table>
+      <thead><tr><th>Time</th><th>Total</th><th>Wins</th><th>%</th></tr></thead>
+      <tbody id="timeTable"></tbody>
+    </table>
+  </div>
+</div>
+
 <script>
-// ================= TELEGRAM ALERT =================
+/* ========== TELEGRAM (PASTE YOURS) ========== */
 const TG_BOT_TOKEN = "8297180938:AAHmCdIYnuf2vfidz3wfJXHAOZ9rE5J-lhk";
 const TG_CHAT_ID   = "8455379007";
-
 function sendTelegram(msg){
   fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`,{
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({
-      chat_id: TG_CHAT_ID,
-      text: msg
-    })
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({chat_id:TG_CHAT_ID,text:msg})
   });
 }
 
-/* ================= API ================= */
+/* ========== CONFIG ========== */
 const API="https://draw.ar-lottery01.com/WinGo/WinGo_30S/GetHistoryIssuePage.json";
-
-/* ================= CONFIG ================= */
-const MIN_WARMUP=8, MIN_MATURE=16, CONFIDENCE_THRESHOLD=150;
 const BETS=[50,150,250,550];
+const MIN_DATA=16;
 
-/* ================= STATE ================= */
-let BS_HISTORY=[], lastPeriod=null;
-let cd=30, total=0, correct=0;
-let wallet=1000, betIndex=0;
-let pending=null; // {period,side,bet,row}
+/* ========== STATE ========== */
+let BS=[], lastPeriod=null, cd=30, total=0, correct=0;
+let wallet=1000, betIndex=0, pending=null, wins=0;
+let timeStats=JSON.parse(localStorage.getItem("timeStats")||"{}");
 
-/* ================= HIDDEN BREAKER STATS ================= */
-let breakerStats={ total:0, real:0, fake:0, pressure:0, lastType:null };
-
-function updateBreakerStats(h){
-  if(h.length<3) return;
-  const a=h[2], b=h[1], c=h[0];
-  if(b!==c){
-    breakerStats.total++;
-    breakerStats.lastType=c;
-    if(a===b && b!==c){
-      if(h[0]===h[1] && h[1]===h[2]){
-        breakerStats.real++;
-        breakerStats.pressure=Math.max(0,breakerStats.pressure-1);
-      }else{
-        breakerStats.fake++;
-        breakerStats.pressure++;
-      }
-    }
-  }
-  breakerStats.pressure=Math.min(breakerStats.pressure,5);
-}
-
-/* ================= TIMER ================= */
+/* ========== TIMER ========== */
 setInterval(()=>{ if(cd>0) cd--; cdEl.textContent=cd; },1000);
 
-/* ================= HELPERS ================= */
+/* ========== HELPERS ========== */
 const bs=n=>n<=4?"Small":"Big";
-const nextPeriod=p=>(BigInt(p)+1n).toString();
-const isStable=h=>h[0]===h[1];
-const isBreak=h=>h[0]!==h[1];
-const breakerConfirmed=h=>h.length>=3&&h[0]===h[1]&&h[1]===h[2];
-const isZigZag=h=>h.length>=3&&h[0]!==h[1]&&h[1]!==h[2]&&h[0]===h[2];
-function confidenceStrong(h){let c=0;for(let i=0;i<200;i++)if(h[0]===h[1])c++;return c>=CONFIDENCE_THRESHOLD}
-const predict=(side,why)=>({action:"PREDICT",side,why});
-const skip=why=>({action:"SKIP",why});
+const nextP=p=>(BigInt(p)+1n).toString();
 
-/* ================= ULTRA-PRO ENGINE ================= */
-function ultraPredict(current){
-  BS_HISTORY.unshift(current);
-  if(BS_HISTORY.length>16) BS_HISTORY.pop();
-  updateBreakerStats(BS_HISTORY);
-
-  if(BS_HISTORY.length<MIN_WARMUP)
-    return skip(`👉 Sirf ${BS_HISTORY.length} entries hui hain`);
-
-  if(BS_HISTORY.length<MIN_MATURE)
-    return skip("👉 System abhi market samajh raha hai");
-
-  if(breakerStats.fake>breakerStats.real)
-    return skip("👉 Fake breakers zyada hain, market confuse");
-
-  if(breakerStats.pressure>=3)
-    return skip("👉 Break pressure high hai, risk avoid");
-
-  if(isZigZag(BS_HISTORY))
-    return skip("👉 Big-Small zigzag, market random");
-
-  if(isStable(BS_HISTORY)){
-    if(confidenceStrong(BS_HISTORY))
-      return predict(
-        BS_HISTORY[0],
-        `👉 ${BS_HISTORY[1]} ke baad ${BS_HISTORY[0]} repeat ho raha hai
-👉 Pattern stable lag raha hai
-Isliye ${BS_HISTORY[0]} liya 👍`
-      );
-    return skip("👉 Stable hai par confidence weak");
+/* ========== BREAKER MEMORY (LAST 10) ========== */
+function breakerMemory(hist){
+  let m=[];
+  for(let i=1;i<hist.length;i++){
+    if(hist[i]!==hist[i-1]){
+      m.push(hist[i]); if(m.length>=10) break;
+    }
   }
-
-  if(isBreak(BS_HISTORY)){
-    if(!breakerConfirmed(BS_HISTORY))
-      return skip("👉 Breaker aaya hai, confirm nahi");
-    if(confidenceStrong(BS_HISTORY))
-      return predict(
-        BS_HISTORY[0],
-        `👉 Break ke baad ${BS_HISTORY[0]} do baar repeat hua
-👉 Breaker stats strong hain
-Isliye ${BS_HISTORY[0]} liya 👍`
-      );
-  }
-
-  return skip("👉 Clear signal nahi");
+  if(m.length<5) return null;
+  let c={}; m.forEach(x=>c[x]=(c[x]||0)+1);
+  for(let k in c) if(c[k]/m.length>=0.6) return k;
+  return null;
 }
 
-/* ================= POLL ================= */
+/* ========== PREDICTION (COMBINED) ========== */
+function predict(hist){
+  if(hist.length<MIN_DATA) return {a:"SKIP", r:"Market mature nahi"};
+  const stable = (hist[0]===hist[1] && hist[1]===hist[2]) ? hist[0] : null;
+  const br = breakerMemory(hist);
+
+  if(stable && br && stable===br)
+    return {a:"PREDICT", s:stable, w:"Stable + breaker memory agree"};
+  if(stable && !br)
+    return {a:"PREDICT", s:stable, w:"Stable clear"};
+  if(!stable && br)
+    return {a:"PREDICT", s:br, w:"Breaker memory dominant"};
+
+  return {a:"SKIP", r:"Random / conflict"};
+}
+
+/* ========== POLL ========== */
 async function poll(){
   try{
     const r=await fetch(API,{cache:"no-store"});
     const j=await r.json();
     const d=j?.data?.list?.[0];
-    if(!d||d.issueNumber===lastPeriod) return;
+    if(!d || d.issueNumber===lastPeriod) return;
 
     lastPeriod=d.issueNumber; cd=30;
     const num=+d.number, side=bs(num);
     total++; totalEl.textContent=total;
 
-    /* resolve pending */
-    if(pending && d.issueNumber===pending.period){
-      if(side===pending.side){
-        wallet+=Math.floor(pending.bet*2*0.98);
-        correct++; betIndex=0;
-        pending.row.cells[3].innerHTML='<span class="win">WIN</span>';
+    BS.unshift(side); if(BS.length>30) BS.pop();
+
+    // resolve pending
+    if(pending && d.issueNumber===pending.p){
+      if(side===pending.s){
+        wallet+=Math.floor(pending.b*2*0.98);
+        correct++; wins++; betIndex=0;
+        historyTable.rows[0].cells[3].innerHTML='<span class="win">WIN</span>';
+        timeStats[pending.t].w++;
       }else{
         betIndex=Math.min(betIndex+1,BETS.length-1);
-        pending.row.cells[3].innerHTML='<span class="loss">LOSS</span>';
+        historyTable.rows[0].cells[3].innerHTML='<span class="loss">LOSS</span>';
       }
-      pending.row.cells[4].textContent='₹'+wallet;
+      historyTable.rows[0].cells[4].textContent="₹"+wallet;
       pending=null;
+      walletEl.textContent="₹"+wallet;
       correctEl.textContent=correct;
-      walletEl.textContent='₹'+wallet;
+      localStorage.setItem("timeStats",JSON.stringify(timeStats));
+      if(wins>=10){ wins=0; betIndex=0; } // auto-reset wins
     }
 
-    const decision=ultraPredict(side);
-    predictionEl.textContent=
-      decision.action==="PREDICT" ? `Prediction: ${decision.side}` : "Prediction: SKIP";
-    whyEl.textContent=decision.action==="PREDICT"?decision.why:"";
-    skipList.innerHTML=decision.action==="SKIP"?`<li>❌ ${decision.why}</li>`:"";
-
-    if(decision.action==="PREDICT" && !pending){
+    const dcs=predict(BS);
+    if(dcs.a==="PREDICT" && !pending){
       const bet=BETS[betIndex];
       if(wallet>=bet){
-        wallet-=bet; walletEl.textContent='₹'+wallet;
-        const np=nextPeriod(d.issueNumber);
+        wallet-=bet; walletEl.textContent="₹"+wallet;
+        const np=nextP(d.issueNumber);
         const row=historyTable.insertRow(0);
-        row.innerHTML=`<td>${np}</td><td>${decision.side}</td><td>${bet}</td><td class="pending">PENDING</td><td>₹${wallet}</td>`;
-        pending={period:np,side:decision.side,bet,row};
+        row.innerHTML=`<td>${np}</td><td>${dcs.s}</td><td>${bet}</td><td class="pending">PENDING</td><td>₹${wallet}</td>`;
+        const t=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+        pending={p:np,s:dcs.s,b:bet,t};
+        timeStats[t]??={t:0,w:0}; timeStats[t].t++;
+        sendTelegram(`🎯 PREDICTION\nSide: ${dcs.s}\nWhy: ${dcs.w}\nPeriod: ${np}`);
+        predictionEl.textContent="Prediction: "+dcs.s;
+        whyEl.textContent=dcs.w; skipEl.textContent="";
       }
+    }else{
+      predictionEl.textContent="Prediction: SKIP";
+      skipEl.textContent=dcs.r||""; whyEl.textContent="";
     }
 
     let cls="stable";
-    if(BS_HISTORY[1]&&BS_HISTORY[0]!==BS_HISTORY[1])
-      cls=side==="Big"?"break-big":"break-small";
-
+    if(BS[1] && BS[0]!==BS[1]) cls=side==="Big"?"break-big":"break-small";
     gameTable.insertAdjacentHTML("afterbegin",
-      `<tr class="${cls}"><td>${d.issueNumber}</td><td>${num}</td><td>${side}</td></tr>`
-    );
+      `<tr class="${cls}"><td>${d.issueNumber}</td><td>${num}</td><td>${side}</td></tr>`);
     while(gameTable.children.length>10) gameTable.removeChild(gameTable.lastChild);
 
   }catch(e){}
 }
 setInterval(poll,500);
 
-/* ================= UI ================= */
-function showTab(id){
-  document.getElementById("game").classList.add("hidden");
-  document.getElementById("history").classList.add("hidden");
+/* ========== TIME PANEL ========== */
+function renderTime(){
+  timeTable.innerHTML="";
+  let best=null;
+  for(const k in timeStats){
+    const v=timeStats[k];
+    const r=v.t?Math.round(v.w/v.t*100):0;
+    if(!best || r>best.r) best={k,r};
+    timeTable.insertAdjacentHTML("beforeend",
+      `<tr><td>${k}</td><td>${v.t}</td><td>${v.w}</td><td>${r}%</td></tr>`);
+  }
+  bestTime.textContent=best?best.k:"—";
+  bestRate.textContent=best?best.r+"%":"—";
+}
+
+/* ========== UI ========== */
+function tab(id){
+  ["game","history","time"].forEach(x=>document.getElementById(x).classList.add("hidden"));
   document.getElementById(id).classList.remove("hidden");
   document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
   event.target.classList.add("active");
+  if(id==="time") renderTime();
 }
 
-/* ================= DOM ================= */
+/* ========== DOM ========== */
 const cdEl=document.getElementById("cd");
+const walletEl=document.getElementById("wallet");
 const totalEl=document.getElementById("total");
 const correctEl=document.getElementById("correct");
-const walletEl=document.getElementById("wallet");
 const predictionEl=document.getElementById("prediction");
-const whyEl=document.getElementById("whyText");
-const skipList=document.getElementById("skipList");
+const whyEl=document.getElementById("why");
+const skipEl=document.getElementById("skip");
 const gameTable=document.getElementById("gameTable");
 const historyTable=document.getElementById("historyTable");
+const timeTable=document.getElementById("timeTable");
+const bestTime=document.getElementById("bestTime");
+const bestRate=document.getElementById("bestRate");
 </script>
 
 </body>
