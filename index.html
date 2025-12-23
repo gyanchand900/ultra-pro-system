@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <title>Ultra-Pro Prediction System — FINAL</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 body{margin:0;font-family:Arial;background:#f8fafc;color:#0f172a;padding:14px}
 .hidden{display:none}
 .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:14px;margin-bottom:14px}
 .nav{display:flex;gap:8px;margin-bottom:10px}
 .nav button{flex:1;padding:10px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;font-weight:600;cursor:pointer}
-.nav button.active{background:#2563eb;color:#fff;border-color:#2563eb}
+.nav button.active{background:#2563eb;color:#fff}
 .flex{display:flex;gap:8px;flex-wrap:wrap}
 .stat{flex:1;background:#f1f5f9;border-radius:10px;padding:10px;text-align:center}
 .stat span{font-size:12px;color:#64748b}
@@ -24,8 +24,8 @@ th{background:#f1f5f9}
 .win{color:#16a34a;font-weight:700}
 .loss{color:#dc2626;font-weight:700}
 .pending{color:#ca8a04;font-weight:700}
-
-@keyframes glow{0%{box-shadow:inset 0 0 0 rgba(0,0,0,0)}
+@keyframes glow{
+0%{box-shadow:inset 0 0 0 rgba(0,0,0,0)}
 50%{box-shadow:inset 0 0 18px rgba(0,0,0,.15)}
 100%{box-shadow:inset 0 0 0 rgba(0,0,0,0)}}
 .stable{background:#d1fae5;animation:glow 3.5s infinite}
@@ -37,204 +37,223 @@ th{background:#f1f5f9}
 <body>
 
 <div class="nav">
-  <button class="active" onclick="tab('game')">🎮 Game</button>
-  <button onclick="tab('history')">📜 History</button>
-  <button onclick="tab('time')">⏱ Timing</button>
+<button class="active" onclick="tab('game')">🎮 Game</button>
+<button onclick="tab('history')">📜 History</button>
+<button onclick="tab('time')">⏱ Timing</button>
 </div>
 
-<!-- GAME -->
 <div id="game">
-  <div class="card flex">
-    <div class="stat"><span>Countdown</span><b id="cd">30</b></div>
-    <div class="stat"><span>Wallet</span><b id="wallet">₹1000</b></div>
-    <div class="stat"><span>Total</span><b id="total">0</b></div>
-    <div class="stat"><span>Correct</span><b id="correct">0</b></div>
-  </div>
-
-  <div class="card">
-    <div class="pred" id="prediction">Prediction: WAITING</div>
-    <div class="why" id="why"></div>
-    <div class="skip" id="skip"></div>
-  </div>
-
-  <div class="card">
-    <table>
-      <thead><tr><th>Period</th><th>No.</th><th>Big/Small</th></tr></thead>
-      <tbody id="gameTable"></tbody>
-    </table>
-  </div>
+<div class="card flex">
+<div class="stat"><span>Countdown</span><b id="cd">30</b></div>
+<div class="stat"><span>Wallet</span><b id="wallet">₹1000</b></div>
+<div class="stat"><span>Total</span><b id="total">0</b></div>
+<div class="stat"><span>Correct</span><b id="correct">0</b></div>
 </div>
 
-<!-- HISTORY -->
+<div class="card">
+<div class="pred" id="prediction">Prediction: WAITING</div>
+<div class="why" id="why"></div>
+<div class="skip" id="skip"></div>
+</div>
+
+<div class="card">
+<table>
+<thead><tr><th>Period</th><th>No.</th><th>Big / Small</th></tr></thead>
+<tbody id="gameTable"></tbody>
+</table>
+</div>
+</div>
+
 <div id="history" class="hidden">
-  <div class="card">
-    <table>
-      <thead><tr><th>Period</th><th>Side</th><th>Bet</th><th>Status</th><th>Wallet</th></tr></thead>
-      <tbody id="historyTable"></tbody>
-    </table>
-  </div>
+<div class="card">
+<table>
+<thead><tr><th>Period</th><th>Side</th><th>Bet</th><th>Status</th><th>Wallet</th></tr></thead>
+<tbody id="historyTable"></tbody>
+</table>
+</div>
 </div>
 
-<!-- TIME -->
 <div id="time" class="hidden">
-  <div class="card">
-    <div class="flex">
-      <div class="stat"><span>Best Time</span><b id="bestTime">—</b></div>
-      <div class="stat"><span>Accuracy</span><b id="bestRate">—</b></div>
-    </div>
-    <table>
-      <thead><tr><th>Time</th><th>Total</th><th>Wins</th><th>%</th></tr></thead>
-      <tbody id="timeTable"></tbody>
-    </table>
-  </div>
+<div class="card">
+<div class="flex">
+<div class="stat"><span>Best Time</span><b id="bestTime">—</b></div>
+<div class="stat"><span>Accuracy</span><b id="bestRate">—</b></div>
+</div>
+<table>
+<thead><tr><th>Time</th><th>Total</th><th>Wins</th><th>%</th></tr></thead>
+<tbody id="timeTable"></tbody>
+</table>
+</div>
 </div>
 
 <script>
-/* ========== TELEGRAM (PASTE YOURS) ========== */
-const TG_BOT_TOKEN = "8297180938:AAHmCdIYnuf2vfidz3wfJXHAOZ9rE5J-lhk";
-const TG_CHAT_ID   = "8455379007";
+/* TELEGRAM */
+const TG_BOT_TOKEN="8297180938:AAHmCdIYnuf2vfidz3wfJXHAOZ9rE5J-lhk";
+const TG_CHAT_ID="Id: 8455379007";
 function sendTelegram(msg){
-  fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`,{
-    method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({chat_id:TG_CHAT_ID,text:msg})
-  });
+fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`,{
+method:"POST",headers:{"Content-Type":"application/json"},
+body:JSON.stringify({chat_id:TG_CHAT_ID,text:msg})
+});
 }
 
-/* ========== CONFIG ========== */
+/* CONFIG */
 const API="https://draw.ar-lottery01.com/WinGo/WinGo_30S/GetHistoryIssuePage.json";
 const BETS=[50,150,250,550];
 const MIN_DATA=16;
 
-/* ========== STATE ========== */
-let BS=[], lastPeriod=null, cd=30, total=0, correct=0;
-let wallet=1000, betIndex=0, pending=null, wins=0;
+/* STATE */
+let BS=[],lastPeriod=null,cd=30,total=0,correct=0;
+let wallet=1000,betIndex=0,pending=null,wins=0;
 let timeStats=JSON.parse(localStorage.getItem("timeStats")||"{}");
+let lastBreakerAlert=null,lastPatternAlert=null,lastStableAlert=null;
 
-/* ========== TIMER ========== */
-setInterval(()=>{ if(cd>0) cd--; cdEl.textContent=cd; },1000);
+/* TIMER */
+setInterval(()=>{if(cd>0)cd--;cdEl.textContent=cd},1000);
 
-/* ========== HELPERS ========== */
+/* HELPERS */
 const bs=n=>n<=4?"Small":"Big";
 const nextP=p=>(BigInt(p)+1n).toString();
+const isBreaker=h=>h.length>1&&h[0]!==h[1];
 
-/* ========== BREAKER MEMORY (LAST 10) ========== */
+/* BREAKER MEMORY */
 function breakerMemory(hist){
-  let m=[];
-  for(let i=1;i<hist.length;i++){
-    if(hist[i]!==hist[i-1]){
-      m.push(hist[i]); if(m.length>=10) break;
-    }
-  }
-  if(m.length<5) return null;
-  let c={}; m.forEach(x=>c[x]=(c[x]||0)+1);
-  for(let k in c) if(c[k]/m.length>=0.6) return k;
-  return null;
+let m=[];
+for(let i=1;i<hist.length;i++){
+if(hist[i]!==hist[i-1]){m.push(hist[i]);if(m.length>=10)break;}
+}
+if(m.length<5)return null;
+let c={};m.forEach(x=>c[x]=(c[x]||0)+1);
+for(let k in c)if(c[k]/m.length>=0.6)return k;
+return null;
 }
 
-/* ========== PREDICTION (COMBINED) ========== */
+/* PATTERN ALERTS */
+function sendCurrentPattern(hist){
+if(hist.length<3)return;
+const p=hist.slice(0,3).reverse().join(" → ");
+if(p===lastPatternAlert)return;
+sendTelegram(`📊 CURRENT PATTERN\n${p}\nObserve mode`);
+lastPatternAlert=p;
+}
+function sendStablePattern(hist){
+if(hist.length<3)return;
+if(hist[0]===hist[1]&&hist[1]===hist[2]){
+if(hist[0]===lastStableAlert)return;
+sendTelegram(`🟢 STABLE PATTERN\n${hist[0]} → ${hist[0]} → ${hist[0]}`);
+lastStableAlert=hist[0];
+}
+}
+
+/* PREDICTION */
 function predict(hist){
-  if(hist.length<MIN_DATA) return {a:"SKIP", r:"Market mature nahi"};
-  const stable = (hist[0]===hist[1] && hist[1]===hist[2]) ? hist[0] : null;
-  const br = breakerMemory(hist);
-
-  if(stable && br && stable===br)
-    return {a:"PREDICT", s:stable, w:"Stable + breaker memory agree"};
-  if(stable && !br)
-    return {a:"PREDICT", s:stable, w:"Stable clear"};
-  if(!stable && br)
-    return {a:"PREDICT", s:br, w:"Breaker memory dominant"};
-
-  return {a:"SKIP", r:"Random / conflict"};
+if(hist.length<MIN_DATA)return{a:"SKIP",r:"Market mature nahi"};
+const stable=(hist[0]===hist[1]&&hist[1]===hist[2])?hist[0]:null;
+const br=breakerMemory(hist);
+if(stable&&br&&stable===br)return{a:"PREDICT",s:stable,w:"Stable + breaker agree"};
+if(stable&&!br)return{a:"PREDICT",s:stable,w:"Stable clear"};
+if(!stable&&br)return{a:"PREDICT",s:br,w:"Breaker memory dominant"};
+return{a:"SKIP",r:"Random / conflict"};
 }
 
-/* ========== POLL ========== */
+/* POLL */
 async function poll(){
-  try{
-    const r=await fetch(API,{cache:"no-store"});
-    const j=await r.json();
-    const d=j?.data?.list?.[0];
-    if(!d || d.issueNumber===lastPeriod) return;
+try{
+const r=await fetch(API,{cache:"no-store"});
+const j=await r.json();
+const d=j?.data?.list?.[0];
+if(!d||d.issueNumber===lastPeriod)return;
 
-    lastPeriod=d.issueNumber; cd=30;
-    const num=+d.number, side=bs(num);
-    total++; totalEl.textContent=total;
+lastPeriod=d.issueNumber;cd=30;
+const num=+d.number,side=bs(num);
+total++;totalEl.textContent=total;
 
-    BS.unshift(side); if(BS.length>30) BS.pop();
+BS.unshift(side);if(BS.length>30)BS.pop();
 
-    // resolve pending
-    if(pending && d.issueNumber===pending.p){
-      if(side===pending.s){
-        wallet+=Math.floor(pending.b*2*0.98);
-        correct++; wins++; betIndex=0;
-        historyTable.rows[0].cells[3].innerHTML='<span class="win">WIN</span>';
-        timeStats[pending.t].w++;
-      }else{
-        betIndex=Math.min(betIndex+1,BETS.length-1);
-        historyTable.rows[0].cells[3].innerHTML='<span class="loss">LOSS</span>';
-      }
-      historyTable.rows[0].cells[4].textContent="₹"+wallet;
-      pending=null;
-      walletEl.textContent="₹"+wallet;
-      correctEl.textContent=correct;
-      localStorage.setItem("timeStats",JSON.stringify(timeStats));
-      if(wins>=10){ wins=0; betIndex=0; } // auto-reset wins
-    }
+/* Telegram pattern alerts */
+sendCurrentPattern(BS);
+sendStablePattern(BS);
 
-    const dcs=predict(BS);
-    if(dcs.a==="PREDICT" && !pending){
-      const bet=BETS[betIndex];
-      if(wallet>=bet){
-        wallet-=bet; walletEl.textContent="₹"+wallet;
-        const np=nextP(d.issueNumber);
-        const row=historyTable.insertRow(0);
-        row.innerHTML=`<td>${np}</td><td>${dcs.s}</td><td>${bet}</td><td class="pending">PENDING</td><td>₹${wallet}</td>`;
-        const t=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-        pending={p:np,s:dcs.s,b:bet,t};
-        timeStats[t]??={t:0,w:0}; timeStats[t].t++;
-        sendTelegram(`🎯 PREDICTION\nSide: ${dcs.s}\nWhy: ${dcs.w}\nPeriod: ${np}`);
-        predictionEl.textContent="Prediction: "+dcs.s;
-        whyEl.textContent=dcs.w; skipEl.textContent="";
-      }
-    }else{
-      predictionEl.textContent="Prediction: SKIP";
-      skipEl.textContent=dcs.r||""; whyEl.textContent="";
-    }
+/* Breaker alert */
+if(isBreaker(BS)){
+const key=BS[1]+"→"+BS[0];
+if(key!==lastBreakerAlert){
+sendTelegram(`🧱 BREAKER ALERT\n${key}`);
+lastBreakerAlert=key;
+}
+}
 
-    let cls="stable";
-    if(BS[1] && BS[0]!==BS[1]) cls=side==="Big"?"break-big":"break-small";
-    gameTable.insertAdjacentHTML("afterbegin",
-      `<tr class="${cls}"><td>${d.issueNumber}</td><td>${num}</td><td>${side}</td></tr>`);
-    while(gameTable.children.length>10) gameTable.removeChild(gameTable.lastChild);
+/* Resolve pending */
+if(pending&&d.issueNumber===pending.p){
+if(side===pending.s){
+wallet+=Math.floor(pending.b*2*0.98);
+correct++;wins++;betIndex=0;
+historyTable.rows[0].cells[3].innerHTML='<span class="win">WIN</span>';
+timeStats[pending.t].w++;
+}else{
+betIndex=Math.min(betIndex+1,BETS.length-1);
+historyTable.rows[0].cells[3].innerHTML='<span class="loss">LOSS</span>';
+}
+historyTable.rows[0].cells[4].textContent="₹"+wallet;
+pending=null;walletEl.textContent="₹"+wallet;correctEl.textContent=correct;
+localStorage.setItem("timeStats",JSON.stringify(timeStats));
+if(wins>=10){wins=0;betIndex=0;}
+}
 
-  }catch(e){}
+/* New prediction */
+const dcs=predict(BS);
+if(dcs.a==="PREDICT"&&!pending){
+const bet=BETS[betIndex];
+if(wallet>=bet){
+wallet-=bet;walletEl.textContent="₹"+wallet;
+const np=nextP(d.issueNumber);
+const row=historyTable.insertRow(0);
+row.innerHTML=`<td>${np}</td><td>${dcs.s}</td><td>${bet}</td><td class="pending">PENDING</td><td>₹${wallet}</td>`;
+const t=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+pending={p:np,s:dcs.s,b:bet,t};
+timeStats[t]??={t:0,w:0};timeStats[t].t++;
+sendTelegram(`🎯 PREDICTION\nSide: ${dcs.s}\nWhy: ${dcs.w}\nPeriod: ${np}`);
+predictionEl.textContent="Prediction: "+dcs.s;
+whyEl.textContent=dcs.w;skipEl.textContent="";
+}
+}else{
+predictionEl.textContent="Prediction: SKIP";
+skipEl.textContent=dcs.r||"";whyEl.textContent="";
+}
+
+let cls="stable";
+if(BS[1]&&BS[0]!==BS[1])cls=side==="Big"?"break-big":"break-small";
+gameTable.insertAdjacentHTML("afterbegin",
+`<tr class="${cls}"><td>${d.issueNumber}</td><td>${num}</td><td>${side}</td></tr>`);
+while(gameTable.children.length>10)gameTable.removeChild(gameTable.lastChild);
+
+}catch(e){}
 }
 setInterval(poll,500);
 
-/* ========== TIME PANEL ========== */
+/* TIME PANEL */
 function renderTime(){
-  timeTable.innerHTML="";
-  let best=null;
-  for(const k in timeStats){
-    const v=timeStats[k];
-    const r=v.t?Math.round(v.w/v.t*100):0;
-    if(!best || r>best.r) best={k,r};
-    timeTable.insertAdjacentHTML("beforeend",
-      `<tr><td>${k}</td><td>${v.t}</td><td>${v.w}</td><td>${r}%</td></tr>`);
-  }
-  bestTime.textContent=best?best.k:"—";
-  bestRate.textContent=best?best.r+"%":"—";
+timeTable.innerHTML="";let best=null;
+for(const k in timeStats){
+const v=timeStats[k],r=v.t?Math.round(v.w/v.t*100):0;
+if(!best||r>best.r)best={k,r};
+timeTable.insertAdjacentHTML("beforeend",
+`<tr><td>${k}</td><td>${v.t}</td><td>${v.w}</td><td>${r}%</td></tr>`);
+}
+bestTime.textContent=best?best.k:"—";
+bestRate.textContent=best?best.r+"%":"—";
 }
 
-/* ========== UI ========== */
+/* UI */
 function tab(id){
-  ["game","history","time"].forEach(x=>document.getElementById(x).classList.add("hidden"));
-  document.getElementById(id).classList.remove("hidden");
-  document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
-  event.target.classList.add("active");
-  if(id==="time") renderTime();
+["game","history","time"].forEach(x=>document.getElementById(x).classList.add("hidden"));
+document.getElementById(id).classList.remove("hidden");
+document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
+event.target.classList.add("active");
+if(id==="time")renderTime();
 }
 
-/* ========== DOM ========== */
+/* DOM */
 const cdEl=document.getElementById("cd");
 const walletEl=document.getElementById("wallet");
 const totalEl=document.getElementById("total");
