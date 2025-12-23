@@ -42,11 +42,12 @@ th{background:#f1f5f9}
 <button onclick="tab('time')">⏱ Timing</button>
 </div>
 
+<!-- GAME -->
 <div id="game">
 <div class="card flex">
 <div class="stat"><span>Countdown</span><b id="cd">30</b></div>
 <div class="stat"><span>Wallet</span><b id="wallet">₹1000</b></div>
-<div class="stat"><span>Total</span><b id="total">0</b></div>
+<div class="stat"><span>Entries</span><b id="entryCount">0 / 16</b></div>
 <div class="stat"><span>Correct</span><b id="correct">0</b></div>
 </div>
 
@@ -64,6 +65,7 @@ th{background:#f1f5f9}
 </div>
 </div>
 
+<!-- HISTORY -->
 <div id="history" class="hidden">
 <div class="card">
 <table>
@@ -73,6 +75,7 @@ th{background:#f1f5f9}
 </div>
 </div>
 
+<!-- TIME -->
 <div id="time" class="hidden">
 <div class="card">
 <div class="flex">
@@ -87,7 +90,7 @@ th{background:#f1f5f9}
 </div>
 
 <script>
-/* TELEGRAM */
+/* ================= TELEGRAM ================= */
 const TG_BOT_TOKEN="8297180938:AAHmCdIYnuf2vfidz3wfJXHAOZ9rE5J-lhk";
 const TG_CHAT_ID="8455379007";
 function sendTelegram(msg){
@@ -97,26 +100,27 @@ body:JSON.stringify({chat_id:TG_CHAT_ID,text:msg})
 });
 }
 
-/* CONFIG */
+/* ================= CONFIG ================= */
 const API="https://draw.ar-lottery01.com/WinGo/WinGo_30S/GetHistoryIssuePage.json";
 const BETS=[50,150,250,550];
 const MIN_DATA=16;
 
-/* STATE */
-let BS=[],lastPeriod=null,cd=30,total=0,correct=0;
-let wallet=1000,betIndex=0,pending=null,wins=0;
+/* ================= STATE ================= */
+let BS=[],lastPeriod=null,cd=30;
+let wallet=1000,betIndex=0,pending=null,wins=0,correct=0;
 let timeStats=JSON.parse(localStorage.getItem("timeStats")||"{}");
+let preAlertSent=false;
 let lastBreakerAlert=null,lastPatternAlert=null,lastStableAlert=null;
 
-/* TIMER */
+/* ================= TIMER ================= */
 setInterval(()=>{if(cd>0)cd--;cdEl.textContent=cd},1000);
 
-/* HELPERS */
+/* ================= HELPERS ================= */
 const bs=n=>n<=4?"Small":"Big";
 const nextP=p=>(BigInt(p)+1n).toString();
 const isBreaker=h=>h.length>1&&h[0]!==h[1];
 
-/* BREAKER MEMORY */
+/* ================= BREAKER MEMORY ================= */
 function breakerMemory(hist){
 let m=[];
 for(let i=1;i<hist.length;i++){
@@ -128,24 +132,7 @@ for(let k in c)if(c[k]/m.length>=0.6)return k;
 return null;
 }
 
-/* PATTERN ALERTS */
-function sendCurrentPattern(hist){
-if(hist.length<3)return;
-const p=hist.slice(0,3).reverse().join(" → ");
-if(p===lastPatternAlert)return;
-sendTelegram(`📊 CURRENT PATTERN\n${p}\nObserve mode`);
-lastPatternAlert=p;
-}
-function sendStablePattern(hist){
-if(hist.length<3)return;
-if(hist[0]===hist[1]&&hist[1]===hist[2]){
-if(hist[0]===lastStableAlert)return;
-sendTelegram(`🟢 STABLE PATTERN\n${hist[0]} → ${hist[0]} → ${hist[0]}`);
-lastStableAlert=hist[0];
-}
-}
-
-/* PREDICTION */
+/* ================= PREDICTION ================= */
 function predict(hist){
 if(hist.length<MIN_DATA)return{a:"SKIP",r:"Market mature nahi"};
 const stable=(hist[0]===hist[1]&&hist[1]===hist[2])?hist[0]:null;
@@ -156,7 +143,7 @@ if(!stable&&br)return{a:"PREDICT",s:br,w:"Breaker memory dominant"};
 return{a:"SKIP",r:"Random / conflict"};
 }
 
-/* POLL */
+/* ================= POLL ================= */
 async function poll(){
 try{
 const r=await fetch(API,{cache:"no-store"});
@@ -166,13 +153,16 @@ if(!d||d.issueNumber===lastPeriod)return;
 
 lastPeriod=d.issueNumber;cd=30;
 const num=+d.number,side=bs(num);
-total++;totalEl.textContent=total;
 
 BS.unshift(side);if(BS.length>30)BS.pop();
+entryCount.textContent=`${Math.min(BS.length,MIN_DATA)} / ${MIN_DATA}`;
 
-/* Telegram pattern alerts */
-sendCurrentPattern(BS);
-sendStablePattern(BS);
+/* Pre-alert */
+if(BS.length===13&&!preAlertSent){
+sendTelegram("⏳ Prediction Ready Soon\n13/16 entries analysed");
+preAlertSent=true;
+}
+if(BS.length<13)preAlertSent=false;
 
 /* Breaker alert */
 if(isBreaker(BS)){
@@ -195,7 +185,9 @@ betIndex=Math.min(betIndex+1,BETS.length-1);
 historyTable.rows[0].cells[3].innerHTML='<span class="loss">LOSS</span>';
 }
 historyTable.rows[0].cells[4].textContent="₹"+wallet;
-pending=null;walletEl.textContent="₹"+wallet;correctEl.textContent=correct;
+pending=null;
+walletEl.textContent="₹"+wallet;
+correctEl.textContent=correct;
 localStorage.setItem("timeStats",JSON.stringify(timeStats));
 if(wins>=10){wins=0;betIndex=0;}
 }
@@ -221,6 +213,7 @@ predictionEl.textContent="Prediction: SKIP";
 skipEl.textContent=dcs.r||"";whyEl.textContent="";
 }
 
+/* Table */
 let cls="stable";
 if(BS[1]&&BS[0]!==BS[1])cls=side==="Big"?"break-big":"break-small";
 gameTable.insertAdjacentHTML("afterbegin",
@@ -231,7 +224,7 @@ while(gameTable.children.length>10)gameTable.removeChild(gameTable.lastChild);
 }
 setInterval(poll,500);
 
-/* TIME PANEL */
+/* ================= TIME PANEL ================= */
 function renderTime(){
 timeTable.innerHTML="";let best=null;
 for(const k in timeStats){
@@ -244,7 +237,7 @@ bestTime.textContent=best?best.k:"—";
 bestRate.textContent=best?best.r+"%":"—";
 }
 
-/* UI */
+/* ================= UI ================= */
 function tab(id){
 ["game","history","time"].forEach(x=>document.getElementById(x).classList.add("hidden"));
 document.getElementById(id).classList.remove("hidden");
@@ -253,10 +246,10 @@ event.target.classList.add("active");
 if(id==="time")renderTime();
 }
 
-/* DOM */
+/* ================= DOM ================= */
 const cdEl=document.getElementById("cd");
 const walletEl=document.getElementById("wallet");
-const totalEl=document.getElementById("total");
+const entryCount=document.getElementById("entryCount");
 const correctEl=document.getElementById("correct");
 const predictionEl=document.getElementById("prediction");
 const whyEl=document.getElementById("why");
