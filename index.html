@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Ultra-Pro Prediction System — FULL FINAL</title>
+<title>Ultra-Pro Prediction System – FINAL</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 body{margin:0;font-family:Arial;background:#f8fafc;color:#0f172a;padding:14px}
@@ -39,13 +39,16 @@ th{background:#f1f5f9}
 <div class="nav">
 <button class="active" onclick="tab('game')">🎮 Game</button>
 <button onclick="tab('history')">📜 History</button>
-<button onclick="tab('time')">⏱ Timing</button>
+<button onclick="tab('time')">⏱ Time</button>
 </div>
 
 <!-- GAME -->
 <div id="game">
 <div class="card flex">
 <div class="stat"><span>Countdown</span><b id="cd">30</b></div>
+<div class="stat"><span>Wallet</span><b id="wallet">₹1000</b></div>
+<div class="stat"><span>Correct</span><b id="correct">0</b></div>
+<div class="stat"><span>Max Wrong</span><b id="maxWrong">0</b></div>
 <div class="stat"><span>Entries</span><b id="entryCount">0 / 16</b></div>
 </div>
 
@@ -76,7 +79,7 @@ th{background:#f1f5f9}
 <!-- TIME -->
 <div id="time" class="hidden">
 <div class="card">
-<h3>⏱ Best Prediction Time</h3>
+<h3>⏱ Best Prediction Times</h3>
 <table>
 <thead><tr><th>Time</th><th>Total</th><th>Wins</th><th>%</th></tr></thead>
 <tbody id="timeTable"></tbody>
@@ -98,11 +101,14 @@ body:JSON.stringify({chat_id:TG_CHAT_ID,text:msg})
 /* ================= CONFIG ================= */
 const API="https://draw.ar-lottery01.com/WinGo/WinGo_30S/GetHistoryIssuePage.json";
 const MIN_DATA=16;
+const BETS=[50,150,250,550];
 
 /* ================= STATE ================= */
 let BS=[],lastPeriod=null,cd=30;
 let pending=null;
-let failedStable={};          // learning memory
+let wallet=1000,betIndex=0;
+let correct=0,wrongStreak=0,maxWrong=0;
+let failedStable={};
 let timeStats=JSON.parse(localStorage.getItem("timeStats")||"{}");
 let bestTimeNotified={};
 let preAlert=false;
@@ -134,33 +140,21 @@ if(h[0]!==h[1]&&h[1]!==h[2]&&h[2]!==h[3])return h[1];
 return null;
 }
 
-/* ================= PREDICTION ENGINE (FIXED) ================= */
+/* ================= PREDICTION ENGINE ================= */
 function predict(hist){
 if(hist.length<MIN_DATA)return{a:"SKIP",r:"Market mature nahi"};
-
-const twoSame = hist[0]===hist[1] ? hist[0] : null; // EARLY
-const threeSame = hist[0]===hist[1]&&hist[1]===hist[2] ? hist[0] : null;
-const key = hist.slice(0,3).join("-");
-if(failedStable[key]) return {a:"SKIP",r:"Last time yeh structure fail hua"};
-
-if(twoSame && !threeSame)
-return {a:"PREDICT",s:twoSame,m:"EARLY-STABLE",w:"2 same se early entry"};
-
+const twoSame=hist[0]===hist[1]?hist[0]:null;
+const threeSame=hist[0]===hist[1]&&hist[1]===hist[2]?hist[0]:null;
+const memKey=hist.slice(0,3).join("-");
+if(failedStable[memKey])return{a:"SKIP",r:"Last time yeh pattern fail hua"};
+if(twoSame&&!threeSame)return{a:"PREDICT",s:twoSame,m:"EARLY-STABLE",w:"2 same par early entry"};
 const br=breakerMemory(hist);
-if(threeSame && br && threeSame===br)
-return {a:"PREDICT",s:threeSame,m:"STABLE+BREAKER",w:"Stable + breaker agree"};
-
-if(threeSame)
-return {a:"PREDICT",s:threeSame,m:"STABLE",w:"Confirmed stable"};
-
-if(br)
-return {a:"PREDICT",s:br,m:"BREAKER",w:"Breaker repeat"};
-
+if(threeSame&&br&&threeSame===br)return{a:"PREDICT",s:threeSame,m:"STABLE+BREAKER",w:"Stable + breaker agree"};
+if(threeSame)return{a:"PREDICT",s:threeSame,m:"STABLE",w:"Stable confirm"};
+if(br)return{a:"PREDICT",s:br,m:"BREAKER",w:"Breaker repeat"};
 const rnd=randomBreaker(hist);
-if(rnd)
-return {a:"PREDICT",s:rnd,m:"RANDOM",w:"Zig-zag breaker",risk:true};
-
-return {a:"SKIP",r:"Pressure / no edge"};
+if(rnd)return{a:"PREDICT",s:rnd,m:"RANDOM",w:"Zig-zag breaker",risk:true};
+return{a:"SKIP",r:"No edge"};
 }
 
 /* ================= POLL ================= */
@@ -176,35 +170,74 @@ const num=+d.number,side=bs(num);
 BS.unshift(side);if(BS.length>30)BS.pop();
 entryCount.textContent=`${Math.min(BS.length,MIN_DATA)} / ${MIN_DATA}`;
 
-/* Resolve previous prediction */
+/* Resolve previous */
 if(pending){
-const win = side===pending.s;
+const win=side===pending.s;
 historyTable.rows[0].cells[3].innerHTML=win?'<span class="win">WIN</span>':'<span class="loss">LOSS</span>';
-sendTelegram(`${win?'✅':'❌'} RESULT: ${win?'WIN':'LOSS'}\nSide: ${pending.s}\nMode: ${pending.m}`);
-if(!win && pending.m.includes("STABLE")){
-const k=pending.memKey; failedStable[k]=true;
-}
-timeStats[pending.t].t++;
-if(win)timeStats[pending.t].w++;
-pending=null;
+
+if(win){
+wallet+=Math.floor(pending.bet*2*0.98);
+betIndex=0;correct++;wrongStreak=0;
+}else{
+betIndex=Math.min(betIndex+1,BETS.length-1);
+wrongStreak++;maxWrong=Math.max(maxWrong,wrongStreak);
+if(pending.m.includes("STABLE"))failedStable[pending.memKey]=true;
 }
 
-/* New decision */
+timeStats[pending.t].t++;
+if(win)timeStats[pending.t].w++;
+
+if(win){
+if(pending.m==="RANDOM"){
+sendTelegram(
+`🔥🎯 HIGH RISK WIN
+⚠️ Mode: RANDOM BREAKER
+📈 Side: ${pending.s}`
+);
+}else{
+sendTelegram(
+`🎉✅ WIN CONFIRMED
+📈 Side: ${pending.s}
+Mode: ${pending.m}`
+);
+}
+}else{
+sendTelegram(
+`💥❌ LOSS HIT
+📉 Side: ${pending.s}
+Mode: ${pending.m}`
+);
+}
+
+pending=null;
+walletEl.textContent="₹"+wallet;
+correctEl.textContent=correct;
+maxWrongEl.textContent=maxWrong;
+}
+
+/* New prediction */
 const dcs=predict(BS);
 if(dcs.a==="PREDICT"){
+const bet=BETS[betIndex];
+if(wallet>=bet){
+wallet-=bet;walletEl.textContent="₹"+wallet;
 prediction.innerHTML=`Prediction: ${dcs.s} ${dcs.risk?'<span class="highrisk">(HIGH RISK)</span>':''}`;
-why.textContent=dcs.w;
-skip.textContent="";
+why.textContent=dcs.w;skip.textContent="";
 const t=nowTime();
 timeStats[t]??={t:0,w:0};
-pending={s:dcs.s,m:dcs.m,t,memKey:BS.slice(0,3).join("-")};
-sendTelegram(`🎯 PREDICTION\nSide: ${dcs.s}\nMode: ${dcs.m}${dcs.risk?" (HIGH RISK)":""}\nPeriod: ${nextP(d.issueNumber)}`);
+pending={s:dcs.s,m:dcs.m,t,bet,memKey:BS.slice(0,3).join("-")};
+sendTelegram(
+`🎯 PREDICTION
+Side: ${dcs.s}
+Mode: ${dcs.m}
+Period: ${nextP(d.issueNumber)}`
+);
 historyTable.insertAdjacentHTML("afterbegin",
 `<tr><td>${nextP(d.issueNumber)}</td><td>${dcs.s}</td><td>${dcs.m}</td><td>PENDING</td></tr>`);
+}
 }else{
 prediction.textContent="Prediction: SKIP";
-skip.textContent=dcs.r;
-why.textContent="";
+skip.textContent=dcs.r;why.textContent="";
 }
 
 /* Table */
@@ -245,6 +278,9 @@ event.target.classList.add("active");
 
 /* ================= DOM ================= */
 const cdEl=document.getElementById("cd");
+const walletEl=document.getElementById("wallet");
+const correctEl=document.getElementById("correct");
+const maxWrongEl=document.getElementById("maxWrong");
 const entryCount=document.getElementById("entryCount");
 const prediction=document.getElementById("prediction");
 const why=document.getElementById("why");
