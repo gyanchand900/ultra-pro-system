@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Ultra-Pro Prediction System – FINAL</title>
+<title>Ultra-Pro Prediction System – ALL FEATURES FINAL</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 body{margin:0;font-family:Arial;background:#f8fafc;color:#0f172a;padding:14px}
@@ -111,7 +111,7 @@ let correct=0,wrongStreak=0,maxWrong=0;
 let failedStable={};
 let timeStats=JSON.parse(localStorage.getItem("timeStats")||"{}");
 let bestTimeNotified={};
-let preAlert=false;
+let dailyStats=JSON.parse(localStorage.getItem("dailyStats")||"{}");
 
 /* ================= TIMER ================= */
 setInterval(()=>{if(cd>0)cd--;cdEl.textContent=cd},1000);
@@ -120,6 +120,29 @@ setInterval(()=>{if(cd>0)cd--;cdEl.textContent=cd},1000);
 const bs=n=>n<=4?"Small":"Big";
 const nextP=p=>(BigInt(p)+1n).toString();
 const nowTime=()=>new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+const todayKey=()=>new Date().toISOString().slice(0,10);
+
+/* ================= DAILY ACCURACY ================= */
+function recordDaily(win){
+const d=todayKey();
+dailyStats[d]??={t:0,w:0,reported:false};
+dailyStats[d].t++;
+if(win)dailyStats[d].w++;
+localStorage.setItem("dailyStats",JSON.stringify(dailyStats));
+}
+function dailyAccuracyReport(){
+const k=Object.keys(dailyStats).sort();
+if(k.length<2)return;
+const t=k[k.length-1],y=k[k.length-2];
+const a=dailyStats[y],b=dailyStats[t];
+const ay=a.t?Math.round(a.w/a.t*100):0;
+const at=b.t?Math.round(b.w/b.t*100):0;
+if(!b.reported){
+sendTelegram(`📊 DAILY ACCURACY REPORT\n\nकल Accuracy: ${ay}%\nआज Accuracy: ${at}%\n\n📈 Improvement: ${at-ay}%`);
+b.reported=true;
+localStorage.setItem("dailyStats",JSON.stringify(dailyStats));
+}
+}
 
 /* ================= MEMORY ================= */
 function breakerMemory(hist){
@@ -146,7 +169,7 @@ if(hist.length<MIN_DATA)return{a:"SKIP",r:"Market mature nahi"};
 const twoSame=hist[0]===hist[1]?hist[0]:null;
 const threeSame=hist[0]===hist[1]&&hist[1]===hist[2]?hist[0]:null;
 const memKey=hist.slice(0,3).join("-");
-if(failedStable[memKey])return{a:"SKIP",r:"Last time yeh pattern fail hua"};
+if(failedStable[memKey])return{a:"SKIP",r:"Last time pattern fail hua"};
 if(twoSame&&!threeSame)return{a:"PREDICT",s:twoSame,m:"EARLY-STABLE",w:"2 same par early entry"};
 const br=breakerMemory(hist);
 if(threeSame&&br&&threeSame===br)return{a:"PREDICT",s:threeSame,m:"STABLE+BREAKER",w:"Stable + breaker agree"};
@@ -184,29 +207,20 @@ wrongStreak++;maxWrong=Math.max(maxWrong,wrongStreak);
 if(pending.m.includes("STABLE"))failedStable[pending.memKey]=true;
 }
 
+timeStats[pending.t]??={t:0,w:0};
 timeStats[pending.t].t++;
 if(win)timeStats[pending.t].w++;
 
+recordDaily(win);
+
 if(win){
 if(pending.m==="RANDOM"){
-sendTelegram(
-`🔥🎯 HIGH RISK WIN
-⚠️ Mode: RANDOM BREAKER
-📈 Side: ${pending.s}`
-);
+sendTelegram(`🔥🎯 HIGH RISK WIN\n⚠️ Mode: RANDOM BREAKER\n📈 Side: ${pending.s}`);
 }else{
-sendTelegram(
-`🎉✅ WIN CONFIRMED
-📈 Side: ${pending.s}
-Mode: ${pending.m}`
-);
+sendTelegram(`🎉✅ WIN CONFIRMED\n📈 Side: ${pending.s}\nMode: ${pending.m}`);
 }
 }else{
-sendTelegram(
-`💥❌ LOSS HIT
-📉 Side: ${pending.s}
-Mode: ${pending.m}`
-);
+sendTelegram(`💥❌ LOSS HIT\n📉 Side: ${pending.s}\nMode: ${pending.m}`);
 }
 
 pending=null;
@@ -224,14 +238,8 @@ wallet-=bet;walletEl.textContent="₹"+wallet;
 prediction.innerHTML=`Prediction: ${dcs.s} ${dcs.risk?'<span class="highrisk">(HIGH RISK)</span>':''}`;
 why.textContent=dcs.w;skip.textContent="";
 const t=nowTime();
-timeStats[t]??={t:0,w:0};
 pending={s:dcs.s,m:dcs.m,t,bet,memKey:BS.slice(0,3).join("-")};
-sendTelegram(
-`🎯 PREDICTION
-Side: ${dcs.s}
-Mode: ${dcs.m}
-Period: ${nextP(d.issueNumber)}`
-);
+sendTelegram(`🎯 PREDICTION\nSide: ${dcs.s}\nMode: ${dcs.m}\nPeriod: ${nextP(d.issueNumber)}`);
 historyTable.insertAdjacentHTML("afterbegin",
 `<tr><td>${nextP(d.issueNumber)}</td><td>${dcs.s}</td><td>${dcs.m}</td><td>PENDING</td></tr>`);
 }
@@ -247,8 +255,9 @@ gameTable.insertAdjacentHTML("afterbegin",
 `<tr class="${cls}"><td>${d.issueNumber}</td><td>${num}</td><td>${side}</td></tr>`);
 while(gameTable.children.length>10)gameTable.removeChild(gameTable.lastChild);
 
-/* Time learning */
 renderTime();
+dailyAccuracyReport();
+
 }catch(e){}
 }
 setInterval(poll,500);
