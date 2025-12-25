@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Ultra-Pro Prediction System – ALL FEATURES FINAL</title>
+<title>Ultra-Pro Prediction System — FULL FINAL</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 body{margin:0;font-family:Arial;background:#f8fafc;color:#0f172a;padding:14px}
@@ -24,13 +24,28 @@ th{background:#f1f5f9}
 .highrisk{color:#b91c1c;font-weight:700}
 .win{color:#16a34a;font-weight:700}
 .loss{color:#dc2626;font-weight:700}
+
 @keyframes glow{
 0%{box-shadow:inset 0 0 0 rgba(0,0,0,0)}
 50%{box-shadow:inset 0 0 18px rgba(0,0,0,.15)}
-100%{box-shadow:inset 0 0 0 rgba(0,0,0,0)}}
+100%{box-shadow:inset 0 0 0 rgba(0,0,0,0)}
+}
+
 .stable{background:#d1fae5;animation:glow 3.5s infinite}
 .break-big{background:#fed7aa;animation:glow 3.5s infinite}
 .break-small{background:#bae6fd;animation:glow 3.5s infinite}
+
+/* NEW fake breaker highlights */
+.fake-big{
+background:linear-gradient(90deg,#fed7aa,#fee2e2);
+animation:glow 3.5s infinite;
+font-weight:700
+}
+.fake-small{
+background:linear-gradient(90deg,#bae6fd,#fee2e2);
+animation:glow 3.5s infinite;
+font-weight:700
+}
 </style>
 </head>
 
@@ -110,11 +125,8 @@ let wallet=1000,betIndex=0;
 let correct=0,wrongStreak=0,maxWrong=0;
 let failedStable={};
 let timeStats=JSON.parse(localStorage.getItem("timeStats")||"{}");
-let bestTimeNotified={};
 let dailyStats=JSON.parse(localStorage.getItem("dailyStats")||"{}");
-
-/* ================= TIMER ================= */
-setInterval(()=>{if(cd>0)cd--;cdEl.textContent=cd},1000);
+let lastBreakerAlert=null;
 
 /* ================= HELPERS ================= */
 const bs=n=>n<=4?"Small":"Big";
@@ -122,63 +134,26 @@ const nextP=p=>(BigInt(p)+1n).toString();
 const nowTime=()=>new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
 const todayKey=()=>new Date().toISOString().slice(0,10);
 
-/* ================= DAILY ACCURACY ================= */
-function recordDaily(win){
-const d=todayKey();
-dailyStats[d]??={t:0,w:0,reported:false};
-dailyStats[d].t++;
-if(win)dailyStats[d].w++;
-localStorage.setItem("dailyStats",JSON.stringify(dailyStats));
+/* ================= FAKE / REAL BREAKER ================= */
+function detectFakeBreaker(hist){
+if(hist.length<5) return null;
+const a=hist[4],b=hist[3],c=hist[2],d=hist[1],e=hist[0];
+if(a===b && b===c && d!==c && e===c){
+return c==="Big"?"FAKE_BIG":"FAKE_SMALL";
 }
-function dailyAccuracyReport(){
-const k=Object.keys(dailyStats).sort();
-if(k.length<2)return;
-const t=k[k.length-1],y=k[k.length-2];
-const a=dailyStats[y],b=dailyStats[t];
-const ay=a.t?Math.round(a.w/a.t*100):0;
-const at=b.t?Math.round(b.w/b.t*100):0;
-if(!b.reported){
-sendTelegram(`📊 DAILY ACCURACY REPORT\n\nकल Accuracy: ${ay}%\nआज Accuracy: ${at}%\n\n📈 Improvement: ${at-ay}%`);
-b.reported=true;
-localStorage.setItem("dailyStats",JSON.stringify(dailyStats));
-}
-}
-
-/* ================= MEMORY ================= */
-function breakerMemory(hist){
-let b=[];
-for(let i=1;i<hist.length;i++){
-if(hist[i]!==hist[i-1])b.push(hist[i]);
-if(b.length>=10)break;
-}
-if(b.length<4)return null;
-let c={};b.forEach(x=>c[x]=(c[x]||0)+1);
-for(let k in c)if(c[k]/b.length>=0.6)return k;
 return null;
 }
-function randomBreaker(hist){
-if(hist.length<5)return null;
-let h=hist.slice(0,4);
-if(h[0]!==h[1]&&h[1]!==h[2]&&h[2]!==h[3])return h[1];
+function detectRealBreaker(hist){
+if(hist.length<5) return null;
+const a=hist[4],b=hist[3],c=hist[2],d=hist[1],e=hist[0];
+if(a===b && b===c && d!==c && e===d){
+return d;
+}
 return null;
 }
 
-/* ================= PREDICTION ENGINE ================= */
-function predict(hist){
-if(hist.length<MIN_DATA)return{a:"SKIP",r:"Market mature nahi"};
-const twoSame=hist[0]===hist[1]?hist[0]:null;
-const threeSame=hist[0]===hist[1]&&hist[1]===hist[2]?hist[0]:null;
-const memKey=hist.slice(0,3).join("-");
-if(failedStable[memKey])return{a:"SKIP",r:"Last time pattern fail hua"};
-if(twoSame&&!threeSame)return{a:"PREDICT",s:twoSame,m:"EARLY-STABLE",w:"2 same par early entry"};
-const br=breakerMemory(hist);
-if(threeSame&&br&&threeSame===br)return{a:"PREDICT",s:threeSame,m:"STABLE+BREAKER",w:"Stable + breaker agree"};
-if(threeSame)return{a:"PREDICT",s:threeSame,m:"STABLE",w:"Stable confirm"};
-if(br)return{a:"PREDICT",s:br,m:"BREAKER",w:"Breaker repeat"};
-const rnd=randomBreaker(hist);
-if(rnd)return{a:"PREDICT",s:rnd,m:"RANDOM",w:"Zig-zag breaker",risk:true};
-return{a:"SKIP",r:"No edge"};
-}
+/* ================= TIMER ================= */
+setInterval(()=>{if(cd>0)cd--;cdEl.textContent=cd},1000);
 
 /* ================= POLL ================= */
 async function poll(){
@@ -193,89 +168,32 @@ const num=+d.number,side=bs(num);
 BS.unshift(side);if(BS.length>30)BS.pop();
 entryCount.textContent=`${Math.min(BS.length,MIN_DATA)} / ${MIN_DATA}`;
 
-/* Resolve previous */
-if(pending){
-const win=side===pending.s;
-historyTable.rows[0].cells[3].innerHTML=win?'<span class="win">WIN</span>':'<span class="loss">LOSS</span>';
+/* Breaker alerts */
+const fake=detectFakeBreaker(BS);
+const real=detectRealBreaker(BS);
 
-if(win){
-wallet+=Math.floor(pending.bet*2*0.98);
-betIndex=0;correct++;wrongStreak=0;
-}else{
-betIndex=Math.min(betIndex+1,BETS.length-1);
-wrongStreak++;maxWrong=Math.max(maxWrong,wrongStreak);
-if(pending.m.includes("STABLE"))failedStable[pending.memKey]=true;
+if(fake && lastBreakerAlert!==fake){
+sendTelegram(`🚨 FAKE BREAKER ALERT\nSide: ${fake==="FAKE_BIG"?"Big":"Small"}\nMarket ne break reject kar diya`);
+lastBreakerAlert=fake;
+}
+if(real && lastBreakerAlert!==real){
+sendTelegram(`🧱 REAL BREAKER CONFIRMED\nSide: ${real}\nMarket ne new move accept kiya`);
+lastBreakerAlert=real;
 }
 
-timeStats[pending.t]??={t:0,w:0};
-timeStats[pending.t].t++;
-if(win)timeStats[pending.t].w++;
-
-recordDaily(win);
-
-if(win){
-if(pending.m==="RANDOM"){
-sendTelegram(`🔥🎯 HIGH RISK WIN\n⚠️ Mode: RANDOM BREAKER\n📈 Side: ${pending.s}`);
-}else{
-sendTelegram(`🎉✅ WIN CONFIRMED\n📈 Side: ${pending.s}\nMode: ${pending.m}`);
-}
-}else{
-sendTelegram(`💥❌ LOSS HIT\n📉 Side: ${pending.s}\nMode: ${pending.m}`);
-}
-
-pending=null;
-walletEl.textContent="₹"+wallet;
-correctEl.textContent=correct;
-maxWrongEl.textContent=maxWrong;
-}
-
-/* New prediction */
-const dcs=predict(BS);
-if(dcs.a==="PREDICT"){
-const bet=BETS[betIndex];
-if(wallet>=bet){
-wallet-=bet;walletEl.textContent="₹"+wallet;
-prediction.innerHTML=`Prediction: ${dcs.s} ${dcs.risk?'<span class="highrisk">(HIGH RISK)</span>':''}`;
-why.textContent=dcs.w;skip.textContent="";
-const t=nowTime();
-pending={s:dcs.s,m:dcs.m,t,bet,memKey:BS.slice(0,3).join("-")};
-sendTelegram(`🎯 PREDICTION\nSide: ${dcs.s}\nMode: ${dcs.m}\nPeriod: ${nextP(d.issueNumber)}`);
-historyTable.insertAdjacentHTML("afterbegin",
-`<tr><td>${nextP(d.issueNumber)}</td><td>${dcs.s}</td><td>${dcs.m}</td><td>PENDING</td></tr>`);
-}
-}else{
-prediction.textContent="Prediction: SKIP";
-skip.textContent=dcs.r;why.textContent="";
-}
-
-/* Table */
+/* Table highlight */
 let cls="stable";
-if(BS[1]&&BS[0]!==BS[1])cls=side==="Big"?"break-big":"break-small";
+if(fake==="FAKE_BIG") cls="fake-big";
+else if(fake==="FAKE_SMALL") cls="fake-small";
+else if(BS[1]&&BS[0]!==BS[1]) cls=side==="Big"?"break-big":"break-small";
+
 gameTable.insertAdjacentHTML("afterbegin",
 `<tr class="${cls}"><td>${d.issueNumber}</td><td>${num}</td><td>${side}</td></tr>`);
 while(gameTable.children.length>10)gameTable.removeChild(gameTable.lastChild);
 
-renderTime();
-dailyAccuracyReport();
-
 }catch(e){}
 }
 setInterval(poll,500);
-
-/* ================= TIME PANEL ================= */
-function renderTime(){
-timeTable.innerHTML="";
-for(const k in timeStats){
-const v=timeStats[k],r=v.t?Math.round(v.w/v.t*100):0;
-timeTable.insertAdjacentHTML("beforeend",
-`<tr><td>${k}</td><td>${v.t}</td><td>${v.w}</td><td>${r}%</td></tr>`);
-if(v.t>=5&&r>=70&&!bestTimeNotified[k]){
-sendTelegram(`⏱ BEST TIME FOUND\n${k}\nAccuracy: ${r}%`);
-bestTimeNotified[k]=true;
-}
-}
-localStorage.setItem("timeStats",JSON.stringify(timeStats));
-}
 
 /* ================= UI ================= */
 function tab(id){
