@@ -2,14 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Ultra-Pro Prediction System — FULL FINAL</title>
+<title>Ultra-Pro Prediction System – FINAL</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+
 <style>
 body{margin:0;font-family:Arial;background:#f8fafc;color:#0f172a;padding:14px}
 .hidden{display:none}
 .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:14px;margin-bottom:14px}
 .nav{display:flex;gap:8px;margin-bottom:10px}
-.nav button{flex:1;padding:10px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;font-weight:600;cursor:pointer}
+.nav button{flex:1;padding:10px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;font-weight:600}
 .nav button.active{background:#2563eb;color:#fff}
 .flex{display:flex;gap:8px;flex-wrap:wrap}
 .stat{flex:1;background:#f1f5f9;border-radius:10px;padding:10px;text-align:center}
@@ -20,31 +21,49 @@ th,td{padding:8px;text-align:center;border-bottom:1px solid #e5e7eb}
 th{background:#f1f5f9}
 .pred{font-weight:700}
 .why{font-size:13px;color:#334155;white-space:pre-line;margin-top:6px}
-.skip{font-size:12px;color:#b91c1c;margin-top:6px}
+.skip{font-size:12px;color:#b91c1c}
 .highrisk{color:#b91c1c;font-weight:700}
 .win{color:#16a34a;font-weight:700}
 .loss{color:#dc2626;font-weight:700}
 
+/* glow */
 @keyframes glow{
 0%{box-shadow:inset 0 0 0 rgba(0,0,0,0)}
 50%{box-shadow:inset 0 0 18px rgba(0,0,0,.15)}
 100%{box-shadow:inset 0 0 0 rgba(0,0,0,0)}
 }
 
-.stable{background:#d1fae5;animation:glow 3.5s infinite}
-.break-big{background:#fed7aa;animation:glow 3.5s infinite}
-.break-small{background:#bae6fd;animation:glow 3.5s infinite}
+/* highlights */
+.stable{background:#d1fae5}
+.break-big{background:#fed7aa}
+.break-small{background:#bae6fd}
+.fake-big{background:linear-gradient(90deg,#fed7aa,#fee2e2)}
+.fake-small{background:linear-gradient(90deg,#bae6fd,#fee2e2)}
 
-/* NEW fake breaker highlights */
-.fake-big{
-background:linear-gradient(90deg,#fed7aa,#fee2e2);
+.animate .stable,
+.animate .break-big,
+.animate .break-small,
+.animate .fake-big,
+.animate .fake-small{
 animation:glow 3.5s infinite;
-font-weight:700
+font-weight:600;
 }
-.fake-small{
-background:linear-gradient(90deg,#bae6fd,#fee2e2);
-animation:glow 3.5s infinite;
-font-weight:700
+
+/* ===== PREMIUM UI ===== */
+.premium .card{
+border:0;
+box-shadow:0 10px 30px rgba(15,23,42,.08);
+background:linear-gradient(180deg,#fff,#f8fafc);
+}
+.premium .stat{
+background:linear-gradient(180deg,#f8fafc,#eef2ff);
+}
+.premium th{
+background:#eef2ff;
+}
+.premium .nav button.active{
+background:linear-gradient(90deg,#2563eb,#4f46e5);
+border:0;
 }
 </style>
 </head>
@@ -67,6 +86,11 @@ font-weight:700
 <div class="stat"><span>Entries</span><b id="entryCount">0 / 16</b></div>
 </div>
 
+<div class="card flex">
+<button onclick="toggleAnimation()" id="animBtn">✨ Animation: ON</button>
+<button onclick="togglePremium()" id="uiBtn">💎 Premium UI: OFF</button>
+</div>
+
 <div class="card">
 <div class="pred" id="prediction">Prediction: WAITING</div>
 <div class="why" id="why"></div>
@@ -74,7 +98,7 @@ font-weight:700
 </div>
 
 <div class="card">
-<table>
+<table id="tableWrap" class="animate">
 <thead><tr><th>Period</th><th>No.</th><th>Big / Small</th></tr></thead>
 <tbody id="gameTable"></tbody>
 </table>
@@ -115,42 +139,49 @@ body:JSON.stringify({chat_id:TG_CHAT_ID,text:msg})
 
 /* ================= CONFIG ================= */
 const API="https://draw.ar-lottery01.com/WinGo/WinGo_30S/GetHistoryIssuePage.json";
-const MIN_DATA=16;
 const BETS=[50,150,250,550];
+const MIN_DATA=16;
 
 /* ================= STATE ================= */
 let BS=[],lastPeriod=null,cd=30;
-let pending=null;
 let wallet=1000,betIndex=0;
+let pending=null;
 let correct=0,wrongStreak=0,maxWrong=0;
-let failedStable={};
 let timeStats=JSON.parse(localStorage.getItem("timeStats")||"{}");
-let dailyStats=JSON.parse(localStorage.getItem("dailyStats")||"{}");
-let lastBreakerAlert=null;
 
 /* ================= HELPERS ================= */
 const bs=n=>n<=4?"Small":"Big";
 const nextP=p=>(BigInt(p)+1n).toString();
 const nowTime=()=>new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-const todayKey=()=>new Date().toISOString().slice(0,10);
 
-/* ================= FAKE / REAL BREAKER ================= */
-function detectFakeBreaker(hist){
-if(hist.length<5) return null;
-const a=hist[4],b=hist[3],c=hist[2],d=hist[1],e=hist[0];
-if(a===b && b===c && d!==c && e===c){
-return c==="Big"?"FAKE_BIG":"FAKE_SMALL";
+/* ================= BREAKER DETECTION ================= */
+function detectMarketState(h){
+if(h.length<5) return {state:"WAIT"};
+if(h[0]===h[1] && h[1]===h[2]) return {state:"STABLE",side:h[0]};
+if(h[4]===h[3]&&h[3]===h[2]&&h[1]!==h[2]&&h[0]===h[2])
+return {state:"FAKE_BREAKER",side:h[2]};
+if(h[4]===h[3]&&h[3]===h[2]&&h[1]!==h[2]&&h[0]===h[1])
+return {state:"REAL_BREAKER",side:h[1]};
+return {state:"RANDOM"};
 }
-return null;
+
+/* ================= ANIMATION TOGGLE ================= */
+let animOn=true;
+function toggleAnimation(){
+animOn=!animOn;
+tableWrap.classList.toggle("animate",animOn);
+animBtn.innerText=animOn?"✨ Animation: ON":"⭕ Animation: OFF";
 }
-function detectRealBreaker(hist){
-if(hist.length<5) return null;
-const a=hist[4],b=hist[3],c=hist[2],d=hist[1],e=hist[0];
-if(a===b && b===c && d!==c && e===d){
-return d;
+
+/* ================= PREMIUM UI ================= */
+let premiumOn=localStorage.getItem("premiumUI")==="on";
+function applyPremium(){
+document.documentElement.classList.toggle("premium",premiumOn);
+uiBtn.innerText=premiumOn?"💎 Premium UI: ON":"💎 Premium UI: OFF";
+localStorage.setItem("premiumUI",premiumOn?"on":"off");
 }
-return null;
-}
+function togglePremium(){premiumOn=!premiumOn;applyPremium();}
+applyPremium();
 
 /* ================= TIMER ================= */
 setInterval(()=>{if(cd>0)cd--;cdEl.textContent=cd},1000);
@@ -168,29 +199,59 @@ const num=+d.number,side=bs(num);
 BS.unshift(side);if(BS.length>30)BS.pop();
 entryCount.textContent=`${Math.min(BS.length,MIN_DATA)} / ${MIN_DATA}`;
 
-/* Breaker alerts */
-const fake=detectFakeBreaker(BS);
-const real=detectRealBreaker(BS);
+const state=detectMarketState(BS);
 
-if(fake && lastBreakerAlert!==fake){
-sendTelegram(`🚨 FAKE BREAKER ALERT\nSide: ${fake==="FAKE_BIG"?"Big":"Small"}\nMarket ne break reject kar diya`);
-lastBreakerAlert=fake;
-}
-if(real && lastBreakerAlert!==real){
-sendTelegram(`🧱 REAL BREAKER CONFIRMED\nSide: ${real}\nMarket ne new move accept kiya`);
-lastBreakerAlert=real;
-}
-
-/* Table highlight */
+/* highlight */
 let cls="stable";
-if(fake==="FAKE_BIG") cls="fake-big";
-else if(fake==="FAKE_SMALL") cls="fake-small";
-else if(BS[1]&&BS[0]!==BS[1]) cls=side==="Big"?"break-big":"break-small";
+if(state.state==="FAKE_BREAKER") cls=state.side==="Big"?"fake-big":"fake-small";
+else if(state.state==="REAL_BREAKER") cls=side==="Big"?"break-big":"break-small";
 
 gameTable.insertAdjacentHTML("afterbegin",
 `<tr class="${cls}"><td>${d.issueNumber}</td><td>${num}</td><td>${side}</td></tr>`);
 while(gameTable.children.length>10)gameTable.removeChild(gameTable.lastChild);
 
+/* resolve */
+if(pending){
+const win=side===pending.s;
+historyTable.rows[0].cells[3].innerHTML=win?'<span class="win">WIN</span>':'<span class="loss">LOSS</span>';
+if(win){
+wallet+=Math.floor(pending.bet*2*0.98);
+correct++;wrongStreak=0;betIndex=0;
+sendTelegram(`🎉✅ WIN CONFIRMED\nSide: ${pending.s}`);
+}else{
+wrongStreak++;maxWrong=Math.max(maxWrong,wrongStreak);
+betIndex=Math.min(betIndex+1,BETS.length-1);
+sendTelegram(`💥❌ LOSS HIT\nSide: ${pending.s}`);
+}
+walletEl.textContent="₹"+wallet;
+correctEl.textContent=correct;
+maxWrongEl.textContent=maxWrong;
+pending=null;
+}
+
+/* auto prediction */
+if(!pending && BS.length>=MIN_DATA){
+if(state.state==="STABLE"||state.state==="REAL_BREAKER"){
+const bet=BETS[betIndex];
+if(wallet>=bet){
+wallet-=bet;walletEl.textContent="₹"+wallet;
+pending={s:state.side,bet};
+prediction.innerText=`Prediction: ${state.side}`;
+why.innerText=state.state==="STABLE"
+?"Market stable → same side continue"
+:"Real breaker accepted → new side";
+sendTelegram(`🎯 PREDICTION\nSide: ${state.side}\nMode: ${state.state}\nPeriod: ${nextP(d.issueNumber)}`);
+historyTable.insertAdjacentHTML("afterbegin",
+`<tr><td>${nextP(d.issueNumber)}</td><td>${state.side}</td><td>${state.state}</td><td>PENDING</td></tr>`);
+}
+}else{
+prediction.innerText="Prediction: SKIP";
+skip.innerText=state.state==="FAKE_BREAKER"
+?"Fake breaker detected → trap"
+:"Random / unstable";
+why.innerText="";
+}
+}
 }catch(e){}
 }
 setInterval(poll,500);
@@ -215,6 +276,9 @@ const skip=document.getElementById("skip");
 const gameTable=document.getElementById("gameTable");
 const historyTable=document.getElementById("historyTable");
 const timeTable=document.getElementById("timeTable");
+const tableWrap=document.getElementById("tableWrap");
+const animBtn=document.getElementById("animBtn");
+const uiBtn=document.getElementById("uiBtn");
 </script>
 
 </body>
